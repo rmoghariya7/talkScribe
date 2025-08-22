@@ -1,7 +1,7 @@
 import "./Transcribe.css";
-const TranscribeButton = () => {
+const TranscribeButton = ({ onClick }) => {
   return (
-    <button dis className="transcribe-btn">
+    <button className="transcribe-btn" onClick={onClick}>
       <span className="icon">✨</span>
       Transcribe
     </button>

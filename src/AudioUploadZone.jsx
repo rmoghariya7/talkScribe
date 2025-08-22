@@ -1,6 +1,8 @@
 import React, { useCallback, useId, useRef, useState } from "react";
 import { AudioLines, Mic, UploadCloud } from "lucide-react";
 import "./AudioUploadZone.css";
+import transcribe from "./service/api";
+import TranscribeButton from "./Transcribe";
 
 export default function AudioUploadDropzone({
   onFiles,
@@ -14,10 +16,11 @@ export default function AudioUploadDropzone({
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState("");
   const [isRecording, setIsRecording] = useState(false);
-  const [audioUrl, setAudioUrl] = useState(null);
+  //   const [audioUrl, setAudioUrl] = useState(null);
   const [audioBlob, setAudioBlob] = useState(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+  const mediaStreamRef = useRef(null);
 
   const validateFiles = useCallback(
     (files) => {
@@ -64,55 +67,155 @@ export default function AudioUploadDropzone({
     if (e.currentTarget === e.target) setIsDragging(false);
   };
 
+  //   const handleRecord = async () => {
+  //     if (!isRecording) {
+  //       try {
+  //         const stream = await navigator.mediaDevices.getUserMedia({
+  //           audio: true,
+  //         });
+  //         const mediaRecorder = new MediaRecorder(stream);
+  //         mediaRecorderRef.current = mediaRecorder;
+  //         audioChunksRef.current = [];
+
+  //         mediaRecorder.ondataavailable = (event) => {
+  //           if (event.data.size > 0) {
+  //             audioChunksRef.current.push(event.data);
+  //           }
+  //         };
+
+  //         mediaRecorder.onstop = () => {
+  //           const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+  //           setAudioBlob(blob);
+  //           const url = URL.createObjectURL(blob);
+  //           setAudioUrl(url);
+  //         };
+
+  //         mediaRecorder.start();
+  //         setIsRecording(true);
+  //       } catch (err) {
+  //         console.error("Microphone access denied:", err);
+  //       }
+  //     } else {
+  //       mediaRecorderRef.current?.stop();
+  //       setIsRecording(false);
+  //       handleDownload();
+  //     }
+  //   };
+
   const handleRecord = async () => {
-    if (!isRecording) {
+    // STOP flow
+    if (isRecording) {
+      const mediaRecorder = mediaRecorderRef.current;
+      if (!mediaRecorder) return;
+
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
-        });
-        const mediaRecorder = new MediaRecorder(stream);
-        mediaRecorderRef.current = mediaRecorder;
-        audioChunksRef.current = [];
-
-        mediaRecorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            audioChunksRef.current.push(event.data);
-          }
-        };
-
-        mediaRecorder.onstop = () => {
-          const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-          setAudioBlob(blob);
-          const url = URL.createObjectURL(blob);
-          setAudioUrl(url);
-        };
-
-        mediaRecorder.start();
-        setIsRecording(true);
+        mediaRecorder.stop();
       } catch (err) {
-        console.error("Microphone access denied:", err);
+        console.error("Error stopping MediaRecorder:", err);
+        return;
       }
-    } else {
-      mediaRecorderRef.current?.stop();
-      setIsRecording(false);
-      handleDownload();
+
+      // Wait for onstop to complete and return the blob
+      //   const blob = await new Promise((resolve) => {
+      // preserve any previous onstop (or overwrite safely)
+      mediaRecorder.onstop = () => {
+        const b = new Blob(audioChunksRef.current, {
+          type: mediaRecorder.mimeType || "audio/webm",
+        });
+        // store and expose
+        // setAudioBlob(b);
+        // const url = URL.createObjectURL(b);
+        // setAudioUrl(url);
+
+        // cleanup stream tracks
+        if (mediaStreamRef.current) {
+          mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+          mediaStreamRef.current = null;
+        }
+
+        // reset recorder/ref
+        mediaRecorderRef.current = null;
+        audioChunksRef.current = [];
+        setIsRecording(false);
+        if (b) handleDownload(b);
+      };
+
+      // stop triggers onstop asynchronously
+      //   });
+
+      // Now we have the blob (or null), call download
+      return;
+    }
+
+    // START flow
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+
+      // preferred mimeType, fall back if not supported
+      const preferredType = "audio/webm;codecs=opus";
+      let mediaRecorder;
+      try {
+        mediaRecorder = new MediaRecorder(stream, { mimeType: preferredType });
+      } catch (e) {
+        // some browsers don't support the above mimeType
+        mediaRecorder = new MediaRecorder(stream);
+      }
+
+      audioChunksRef.current = [];
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onerror = (e) => {
+        console.error("MediaRecorder error:", e);
+      };
+
+      mediaRecorder.start(); // start recording
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Microphone access denied or error:", err);
+      // optionally show UI error state to user
     }
   };
 
-  const handleDownload = () => {
-    console.log("herere", audioBlob);
-
-    if (audioBlob) {
-      const url = URL.createObjectURL(audioBlob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "recording.webm"; // change to .wav or .mp3 if needed
-      a.click();
-      URL.revokeObjectURL(url);
-    }
+  const handleDownload = (audioBlob) => {
+    setAudioBlob(audioBlob);
+    // transcribe(audioBlob);
+    // if (audioBlob) {
+    //   const url = URL.createObjectURL(audioBlob);
+    //   const a = document.createElement("a");
+    //   a.href = url;
+    //   a.download = "recording.webm"; // change to .wav or .mp3 if needed
+    //   a.click();
+    //   URL.revokeObjectURL(url);
+    // }
   };
 
   const openFileDialog = () => inputRef.current?.click();
+
+  const handleFileUpload = (event) => {
+    const uploadedFile = event.target.files[0];
+
+    if (uploadedFile) {
+      const fileExtension = uploadedFile.name.split(".").pop().toLowerCase();
+      // if (fileExtension !== "xlsx" && fileExtension !== "xls") {
+      //   setError("Please upload a valid Excel file (.xlsx or .xls)");
+      //   return;
+      // }
+      setAudioBlob(uploadedFile);
+
+      // transcribe(uploadedFile);
+    }
+  };
+
+  const handleTranscribe = () => {
+    transcribe(audioBlob);
+  };
 
   return (
     <div className="upload-container">
@@ -167,13 +270,12 @@ export default function AudioUploadDropzone({
           accept={accept}
           multiple
           className="hidden-input"
-          onChange={(e) =>
-            e.currentTarget.files && handleFiles(e.currentTarget.files)
-          }
+          onChange={handleFileUpload}
         />
 
         {error && <div className="error">{error}</div>}
       </div>
+      {audioBlob && <TranscribeButton onClick={handleTranscribe} />}
     </div>
   );
 }

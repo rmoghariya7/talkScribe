@@ -5,6 +5,7 @@
   align-items: center;
   background: #ffffff;
   padding: 40px 0;
+  flex-direction: column;
   color: black;
 }
 .dropzone {
