@@ -1,0 +1,51 @@
+.transcribe-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 28px;
+  font-size: 16px;
+  font-weight: 500;
+  color: white;
+  border: none;
+  border-radius: 9999px; /* pill shape */
+  background: rgba(255, 255, 255, 0.1); /* frosted look */
+  backdrop-filter: blur(12px);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+/* Glow gradient effect */
+.transcribe-btn::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  padding: 2px;
+  background: linear-gradient(90deg, #6ee7ff, #a78bfa, #f472b6, #6ee7ff);
+  background-size: 300% 300%;
+  filter: blur(8px);
+  z-index: -1;
+  animation: glowing 6s linear infinite;
+}
+
+@keyframes glowing {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.transcribe-btn:hover {
+  transform: scale(1.05);
+}
+
+.icon {
+  font-size: 18px;
+}

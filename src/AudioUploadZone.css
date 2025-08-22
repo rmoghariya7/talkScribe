@@ -1,0 +1,134 @@
+.upload-container {
+  min-height: 260px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #ffffff;
+  padding: 40px 0;
+  color: black;
+}
+.dropzone {
+  width: 420px;
+  border-radius: 16px;
+  padding: 32px;
+  text-align: center;
+  position: relative;
+  transition: box-shadow 0.3s;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+}
+.dropzone.dragging {
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.6);
+}
+.illustration {
+  position: relative;
+  width: 96px;
+  height: 64px;
+  margin: 0 auto 24px;
+}
+.card {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.card.back {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.card.mid {
+  left: 52%;
+  top: 38%;
+  transform: translate(-50%, -50%) rotate(12deg);
+}
+.card.front {
+  left: 46%;
+  top: 60%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+}
+.icon {
+  width: 24px;
+  height: 24px;
+  color: rgba(255, 255, 255, 0.7);
+}
+.icon-small {
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+}
+.text {
+  color: rgba(0, 0, 0, 0.8);
+  margin-bottom: 16px;
+}
+.upload-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 20px;
+  border-radius: 9999px;
+  background: rgba(99, 102, 241, 0.9);
+  color: white;
+  font-size: 14px;
+  border: none;
+  cursor: pointer;
+}
+
+.record-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 20px;
+  border-radius: 9999px;
+  background: rgba(99, 102, 241, 0.9);
+  color: white;
+  font-size: 14px;
+  border: none;
+  cursor: pointer;
+}
+
+.upload-button:hover {
+  background: rgba(99, 102, 241, 1);
+}
+.helper {
+  margin-top: 12px;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.5);
+}
+.hidden-input {
+  display: none;
+}
+.error {
+  margin-top: 16px;
+  white-space: pre-wrap;
+  font-size: 14px;
+  color: #fca5a5;
+  text-align: left;
+}
+
+/* ------------------------------------- */
+/* Recording mode */
+.recording {
+  background: #ef4444;
+  animation: pulse 1.5s infinite;
+}
+
+/* WhatsApp-like pulsing ripple effect */
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 20px rgba(239, 68, 68, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
