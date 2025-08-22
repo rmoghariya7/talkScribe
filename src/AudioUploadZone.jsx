@@ -1,5 +1,5 @@
 import React, { useCallback, useId, useRef, useState } from "react";
-import { AudioLines, Mic, UploadCloud } from "lucide-react";
+import { AudioLines, Mic, UploadCloud, X } from "lucide-react";
 import "./AudioUploadZone.css";
 import transcribe from "./service/api";
 import TranscribeButton from "./Transcribe";
@@ -7,9 +7,9 @@ import TranscribeButton from "./Transcribe";
 export default function AudioUploadDropzone({
   onFiles,
   accept = "audio/*",
-  maxSizeBytes = 2 * 1024 * 1024 * 1024, // 2GB
+  maxSizeBytes = 25 * 1024, // 2GB
   buttonLabel = "Upload file",
-  helperText = "Add audio files with spoken audio. Max file size: 2GB",
+  helperText = "Add audio files with spoken audio. Max file size: 25mb",
 }) {
   const inputId = useId();
   const inputRef = useRef(null);
@@ -18,6 +18,7 @@ export default function AudioUploadDropzone({
   const [isRecording, setIsRecording] = useState(false);
   //   const [audioUrl, setAudioUrl] = useState(null);
   const [audioBlob, setAudioBlob] = useState(null);
+  console.log("audioBlob", audioBlob);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const mediaStreamRef = useRef(null);
@@ -184,7 +185,14 @@ export default function AudioUploadDropzone({
   };
 
   const handleDownload = (audioBlob) => {
-    setAudioBlob(audioBlob);
+    console.log("audioBlob", audioBlob);
+    const file = new File([audioBlob], "recording.wav", {
+      type: audioBlob.type || "audio/wav",
+      lastModified: Date.now(),
+    });
+
+    transcribe(file);
+    setAudioBlob(file);
     // transcribe(audioBlob);
     // if (audioBlob) {
     //   const url = URL.createObjectURL(audioBlob);
@@ -214,6 +222,7 @@ export default function AudioUploadDropzone({
   };
 
   const handleTranscribe = () => {
+    console.log("audioBlob", audioBlob);
     transcribe(audioBlob);
   };
 
@@ -242,24 +251,37 @@ export default function AudioUploadDropzone({
 
         <p className="text">Choose your file or just drag and drop it here.</p>
 
-        <div className="row-center gap-8">
-          <button
-            type="button"
-            onClick={openFileDialog}
-            className="upload-button"
-          >
-            <UploadCloud className="icon-small" aria-hidden="true" />
-            {buttonLabel}
-          </button>
-          <button
-            type="button"
-            onClick={handleRecord}
-            className={`record-button ${isRecording ? "recording" : ""}`}
-          >
-            <Mic className="icon-small" />{" "}
-            {isRecording ? "Stop Recording" : "Start Recording"}
-          </button>
-        </div>
+        {!audioBlob ? (
+          <div className="row-center gap-8">
+            <button
+              type="button"
+              onClick={openFileDialog}
+              className="upload-button"
+            >
+              <UploadCloud className="icon-small" aria-hidden="true" />
+              {buttonLabel}
+            </button>
+            <button
+              type="button"
+              onClick={handleRecord}
+              className={`record-button ${isRecording ? "recording" : ""}`}
+            >
+              <Mic className="icon-small" />{" "}
+              {isRecording ? "Stop Recording" : "Start Recording"}
+            </button>
+          </div>
+        ) : (
+          <div className="audio-details">
+            <p>{audioBlob.name}</p>
+            <button
+              className="remove-audio-button"
+              type="button"
+              onClick={() => setAudioBlob(null)}
+            >
+              <X size={18} strokeWidth={2} />
+            </button>
+          </div>
+        )}
 
         <p className="helper">{helperText}</p>
 
