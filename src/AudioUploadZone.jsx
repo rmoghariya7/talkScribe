@@ -7,21 +7,20 @@ import TranscribeButton from "./Transcribe";
 export default function AudioUploadDropzone({
   onFiles,
   accept = "audio/*",
-  maxSizeBytes = 25 * 1024, // 2GB
+  maxSizeBytes = 25 * 1024 * 1024, // 25 MB (fixed)
   buttonLabel = "Upload file",
-  helperText = "Add audio files with spoken audio. Max file size: 25mb",
+  helperText = "Add audio files with spoken audio. Max file size: 25MB",
 }) {
   const inputId = useId();
   const inputRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState("");
   const [isRecording, setIsRecording] = useState(false);
-  //   const [audioUrl, setAudioUrl] = useState(null);
-  const [audioBlob, setAudioBlob] = useState(null);
-  console.log("audioBlob", audioBlob);
+  const [audioBlob, setAudioBlob] = useState(null); // now holds a File when set
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const mediaStreamRef = useRef(null);
+  const [loading, setLoading] = useState(false);
 
   const validateFiles = useCallback(
     (files) => {
@@ -45,9 +44,19 @@ export default function AudioUploadDropzone({
     (fileList) => {
       const files = Array.from(fileList);
       const { accepted, problems } = validateFiles(files);
-      if (problems.length) setError(problems.join("\n"));
-      else setError("");
-      if (accepted.length && typeof onFiles === "function") onFiles(accepted);
+      if (problems.length) {
+        setError(problems.join("\n"));
+        return;
+      } else {
+        setError("");
+      }
+      if (accepted.length) {
+        // call optional external handler
+        if (typeof onFiles === "function") onFiles(accepted);
+        // and set first file as the current audio
+        const first = accepted[0];
+        setAudioBlob(first);
+      }
     },
     [onFiles, validateFiles]
   );
@@ -68,41 +77,6 @@ export default function AudioUploadDropzone({
     if (e.currentTarget === e.target) setIsDragging(false);
   };
 
-  //   const handleRecord = async () => {
-  //     if (!isRecording) {
-  //       try {
-  //         const stream = await navigator.mediaDevices.getUserMedia({
-  //           audio: true,
-  //         });
-  //         const mediaRecorder = new MediaRecorder(stream);
-  //         mediaRecorderRef.current = mediaRecorder;
-  //         audioChunksRef.current = [];
-
-  //         mediaRecorder.ondataavailable = (event) => {
-  //           if (event.data.size > 0) {
-  //             audioChunksRef.current.push(event.data);
-  //           }
-  //         };
-
-  //         mediaRecorder.onstop = () => {
-  //           const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-  //           setAudioBlob(blob);
-  //           const url = URL.createObjectURL(blob);
-  //           setAudioUrl(url);
-  //         };
-
-  //         mediaRecorder.start();
-  //         setIsRecording(true);
-  //       } catch (err) {
-  //         console.error("Microphone access denied:", err);
-  //       }
-  //     } else {
-  //       mediaRecorderRef.current?.stop();
-  //       setIsRecording(false);
-  //       handleDownload();
-  //     }
-  //   };
-
   const handleRecord = async () => {
     // STOP flow
     if (isRecording) {
@@ -116,35 +90,7 @@ export default function AudioUploadDropzone({
         return;
       }
 
-      // Wait for onstop to complete and return the blob
-      //   const blob = await new Promise((resolve) => {
-      // preserve any previous onstop (or overwrite safely)
-      mediaRecorder.onstop = () => {
-        const b = new Blob(audioChunksRef.current, {
-          type: mediaRecorder.mimeType || "audio/webm",
-        });
-        // store and expose
-        // setAudioBlob(b);
-        // const url = URL.createObjectURL(b);
-        // setAudioUrl(url);
-
-        // cleanup stream tracks
-        if (mediaStreamRef.current) {
-          mediaStreamRef.current.getTracks().forEach((t) => t.stop());
-          mediaStreamRef.current = null;
-        }
-
-        // reset recorder/ref
-        mediaRecorderRef.current = null;
-        audioChunksRef.current = [];
-        setIsRecording(false);
-        if (b) handleDownload(b);
-      };
-
-      // stop triggers onstop asynchronously
-      //   });
-
-      // Now we have the blob (or null), call download
+      // onstop defined below will handle building the file
       return;
     }
 
@@ -153,13 +99,11 @@ export default function AudioUploadDropzone({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
 
-      // preferred mimeType, fall back if not supported
       const preferredType = "audio/webm;codecs=opus";
       let mediaRecorder;
       try {
         mediaRecorder = new MediaRecorder(stream, { mimeType: preferredType });
-      } catch (e) {
-        // some browsers don't support the above mimeType
+      } catch {
         mediaRecorder = new MediaRecorder(stream);
       }
 
@@ -176,54 +120,103 @@ export default function AudioUploadDropzone({
         console.error("MediaRecorder error:", e);
       };
 
-      mediaRecorder.start(); // start recording
+      mediaRecorder.onstop = () => {
+        try {
+          const mime = mediaRecorder.mimeType || "audio/webm";
+          const blob = new Blob(audioChunksRef.current, { type: mime });
+
+          // infer extension
+          const ext =
+            mime.includes("wav") || mime.includes("wave")
+              ? "wav"
+              : mime.includes("mp3")
+              ? "mp3"
+              : mime.includes("ogg")
+              ? "ogg"
+              : mime.includes("webm")
+              ? "webm"
+              : "audio";
+
+          const filename = `recording.${ext}`;
+          const file = new File([blob], filename, {
+            type: blob.type,
+            lastModified: Date.now(),
+          });
+
+          // cleanup stream tracks
+          if (mediaStreamRef.current) {
+            mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+            mediaStreamRef.current = null;
+          }
+
+          // reset recorder/ref
+          mediaRecorderRef.current = null;
+          audioChunksRef.current = [];
+
+          setIsRecording(false);
+
+          // set the file and send to transcribe
+          setAudioBlob(file);
+          // transcribe(file);
+        } catch (err) {
+          console.error("Error processing recorded audio:", err);
+        }
+      };
+
+      mediaRecorder.start();
       setIsRecording(true);
     } catch (err) {
       console.error("Microphone access denied or error:", err);
-      // optionally show UI error state to user
+      setError("Microphone access denied or unavailable.");
     }
   };
 
-  const handleDownload = (audioBlob) => {
-    console.log("audioBlob", audioBlob);
-    const file = new File([audioBlob], "recording.wav", {
-      type: audioBlob.type || "audio/wav",
-      lastModified: Date.now(),
-    });
-
-    transcribe(file);
-    setAudioBlob(file);
-    // transcribe(audioBlob);
-    // if (audioBlob) {
-    //   const url = URL.createObjectURL(audioBlob);
-    //   const a = document.createElement("a");
-    //   a.href = url;
-    //   a.download = "recording.webm"; // change to .wav or .mp3 if needed
-    //   a.click();
-    //   URL.revokeObjectURL(url);
-    // }
+  // helper to clear selected file both in state and the DOM input value
+  const clearSelectedFile = () => {
+    setAudioBlob(null);
+    setError("");
+    if (inputRef.current) {
+      try {
+        inputRef.current.value = "";
+      } catch {
+        // some browsers may throw, ignore safely
+      }
+    }
   };
 
-  const openFileDialog = () => inputRef.current?.click();
+  const openFileDialog = () => {
+    // clear input value first so same file can be selected again
+    if (inputRef.current) inputRef.current.value = "";
+    inputRef.current?.click();
+  };
 
   const handleFileUpload = (event) => {
-    const uploadedFile = event.target.files[0];
+    const uploadedFile = event.target.files && event.target.files[0];
+    if (!uploadedFile) return;
 
-    if (uploadedFile) {
-      const fileExtension = uploadedFile.name.split(".").pop().toLowerCase();
-      // if (fileExtension !== "xlsx" && fileExtension !== "xls") {
-      //   setError("Please upload a valid Excel file (.xlsx or .xls)");
-      //   return;
-      // }
-      setAudioBlob(uploadedFile);
-
-      // transcribe(uploadedFile);
+    // validate via validateFiles
+    const { problems } = validateFiles([uploadedFile]);
+    if (problems.length) {
+      setError(problems.join("\n"));
+      return;
     }
+
+    setError("");
+    setAudioBlob(uploadedFile);
+    // optionally call transcribe immediately:
+    // transcribe(uploadedFile);
   };
 
-  const handleTranscribe = () => {
-    console.log("audioBlob", audioBlob);
-    transcribe(audioBlob);
+  const handleTranscribe = async () => {
+    if (!audioBlob) {
+      setError("No audio selected.");
+      return;
+    }
+    setLoading(true);
+    await transcribe(audioBlob);
+    console.log("here");
+
+    setLoading(false);
   };
 
   return (
@@ -240,16 +233,9 @@ export default function AudioUploadDropzone({
         onDragLeave={onDragLeave}
         className={`dropzone ${isDragging ? "dragging" : ""}`}
       >
-        {/* <div className="illustration">
-          <div className="card back" />
-          <div className="card mid" />
-          <div className="card front">
-            <UploadCloud className="icon" aria-hidden="true" />
-          </div>
-        </div> */}
         <AudioLines size={75} className="mid-audio" />
 
-        <p className="text">Choose your file or just drag and drop it here.</p>
+        <p className="text">Choose your file or Record it to transcribe.</p>
 
         {!audioBlob ? (
           <div className="row-center gap-8">
@@ -276,7 +262,7 @@ export default function AudioUploadDropzone({
             <button
               className="remove-audio-button"
               type="button"
-              onClick={() => setAudioBlob(null)}
+              onClick={clearSelectedFile}
             >
               <X size={18} strokeWidth={2} />
             </button>
@@ -290,14 +276,19 @@ export default function AudioUploadDropzone({
           ref={inputRef}
           type="file"
           accept={accept}
-          multiple
+          multiple={false}
           className="hidden-input"
           onChange={handleFileUpload}
         />
 
         {error && <div className="error">{error}</div>}
       </div>
-      {audioBlob && <TranscribeButton onClick={handleTranscribe} />}
+      {audioBlob && (
+        <TranscribeButton
+          label={loading ? "Transcribing..." : "Transcribe"}
+          onClick={handleTranscribe}
+        />
+      )}
     </div>
   );
 }

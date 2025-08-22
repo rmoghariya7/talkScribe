@@ -145,3 +145,8 @@
   all: unset;
   display: flex;
 }
+
+.remove-audio-button:hover {
+  color: #ef4444;
+  cursor: pointer;
+}
